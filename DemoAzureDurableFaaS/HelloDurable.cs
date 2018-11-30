@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -77,7 +78,7 @@ namespace DemoAzureDurableFaaS
         public static HelloDto SayHello([ActivityTrigger] DurableActivityContext activityContext, ILogger log)
         {
             var logger = CreateSerilogLogger(log);
-            var id = activityContext.InstanceId;
+            var id = $"{activityContext.InstanceId}_{DateTime.UtcNow:O}";
 
             var input = activityContext.GetInput<InputDto>();
 
