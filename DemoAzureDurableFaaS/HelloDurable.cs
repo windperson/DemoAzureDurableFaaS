@@ -26,7 +26,7 @@ namespace DemoAzureDurableFaaS
             [OrchestrationClient] DurableOrchestrationClient starter,
             ILogger log)
         {
-            var logger = CreateSerilogLogger(log);
+            var logger = CreateLogger(log);
 
             var existedInstanceStatus = await starter.GetStatusAsync(InstanceId);
             if (existedInstanceStatus != null 
@@ -87,10 +87,10 @@ namespace DemoAzureDurableFaaS
             return outputs;
         }
 
-        [FunctionName("HelloDurable_Hello")]
+        [FunctionName(ActivityFuncName)]
         public static HelloDto SayHello([ActivityTrigger] DurableActivityContext activityContext, ILogger log)
         {
-            var logger = CreateSerilogLogger(log);
+            var logger = CreateLogger(log);
             var id = $"{activityContext.InstanceId}_{DateTime.UtcNow:O}";
 
             var input = activityContext.GetInput<InputDto>();
@@ -108,7 +108,7 @@ namespace DemoAzureDurableFaaS
         }
 
 
-        private static Serilog.ILogger CreateSerilogLogger(ILogger log)
+        private static Serilog.ILogger CreateLogger(ILogger log)
         {
             return new LoggerConfiguration()
                 .Enrich.FromLogContext()
