@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs;
@@ -17,32 +18,44 @@ namespace DemoAzureDurableFaaS
         private const string OrchestratorFuncName = "HelloDurable";
         private const string ActivityFuncName = "HelloDurable_Hello";
 
+        private const string InstanceId = "MySingletonInstanceId";
+
         [FunctionName("HelloDurable_HttpStart")]
         public static async Task<HttpResponseMessage> HttpStart(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")]HttpRequestMessage req,
-            [OrchestrationClient]DurableOrchestrationClient starter,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequestMessage req,
+            [OrchestrationClient] DurableOrchestrationClient starter,
             ILogger log)
         {
             var logger = CreateSerilogLogger(log);
 
+            var existedInstanceStatus = await starter.GetStatusAsync(InstanceId);
+            if (existedInstanceStatus != null 
+                && (existedInstanceStatus.RuntimeStatus == OrchestrationRuntimeStatus.Running 
+                    || existedInstanceStatus.RuntimeStatus == OrchestrationRuntimeStatus.Pending
+                    || existedInstanceStatus.RuntimeStatus == OrchestrationRuntimeStatus.ContinuedAsNew))
+            {
+                return req.CreateErrorResponse(HttpStatusCode.Conflict,
+                        $"An instance with ID '{InstanceId}' is already running or scheduled to run now");
+            }
+
             // Function input comes from the req`uest content.
-            string instanceId = await starter.StartNewAsync(OrchestratorFuncName, null);
+            await starter.StartNewAsync(OrchestratorFuncName, InstanceId, null);
 
-            logger.Information($"Started orchestration with ID = '{instanceId}'.");
+            logger.Information($"Started orchestration with ID = '{InstanceId}'.");
 
-            var durableOrchestrationStatus = await starter.GetStatusAsync(instanceId);
+            var durableOrchestrationStatus = await starter.GetStatusAsync(InstanceId);
 
             while (durableOrchestrationStatus.RuntimeStatus != OrchestrationRuntimeStatus.Completed)
             {
                 logger.Information($"the {OrchestratorFuncName}() is still running");
-                await Task.Delay(200);
-                durableOrchestrationStatus = await starter.GetStatusAsync(instanceId);
+                await Task.Delay(1000);
+                durableOrchestrationStatus = await starter.GetStatusAsync(InstanceId);
             }
 
             var output = durableOrchestrationStatus.Output;
             logger.Information($" {ActivityFuncName}() completed, return= {output}");
 
-            return starter.CreateCheckStatusResponse(req, instanceId);
+            return starter.CreateCheckStatusResponse(req, InstanceId);
         }
 
         [FunctionName(OrchestratorFuncName)]
@@ -93,7 +106,7 @@ namespace DemoAzureDurableFaaS
 
             return output;
         }
-        
+
 
         private static Serilog.ILogger CreateSerilogLogger(ILogger log)
         {
