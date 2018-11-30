@@ -29,16 +29,12 @@ namespace DemoAzureDurableFaaS
             var logger = CreateLogger(log);
 
             var existedInstanceStatus = await starter.GetStatusAsync(InstanceId);
-            if (existedInstanceStatus != null 
-                && (existedInstanceStatus.RuntimeStatus == OrchestrationRuntimeStatus.Running 
-                    || existedInstanceStatus.RuntimeStatus == OrchestrationRuntimeStatus.Pending
-                    || existedInstanceStatus.RuntimeStatus == OrchestrationRuntimeStatus.ContinuedAsNew))
+            if (IsInstanceOccupied(existedInstanceStatus))
             {
                 return req.CreateErrorResponse(HttpStatusCode.Conflict,
                         $"An instance with ID '{InstanceId}' is already running or scheduled to run now");
             }
 
-            // Function input comes from the req`uest content.
             await starter.StartNewAsync(OrchestratorFuncName, InstanceId, null);
 
             logger.Information($"Started orchestration with ID = '{InstanceId}'.");
@@ -56,6 +52,14 @@ namespace DemoAzureDurableFaaS
             logger.Information($" {ActivityFuncName}() completed, return= {output}");
 
             return starter.CreateCheckStatusResponse(req, InstanceId);
+        }
+
+        private static bool IsInstanceOccupied(DurableOrchestrationStatus instanceStatus)
+        {
+            return instanceStatus != null
+                   && (instanceStatus.RuntimeStatus == OrchestrationRuntimeStatus.Running
+                       || instanceStatus.RuntimeStatus == OrchestrationRuntimeStatus.Pending
+                       || instanceStatus.RuntimeStatus == OrchestrationRuntimeStatus.ContinuedAsNew);
         }
 
         [FunctionName(OrchestratorFuncName)]
